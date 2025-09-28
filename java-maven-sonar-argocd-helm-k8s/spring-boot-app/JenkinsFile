@@ -27,7 +27,6 @@ pipeline {
   stages {
     stage('Checkout') {
       steps {
-        // If this is a Multibranch job you can rely on SCM. Otherwise:
         checkout([$class: 'GitSCM',
           branches: [[name: '*/main']],
           userRemoteConfigs: [[url: "${GIT_REPO_URL}"]]
@@ -49,9 +48,6 @@ pipeline {
     }
 
     stage('Static Code Analysis') {
-      environment {
-        // nothing extra; SONAR_URL is already in env
-      }
       steps {
         withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
           sh '''
