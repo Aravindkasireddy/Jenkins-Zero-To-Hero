@@ -1,21 +1,83 @@
 pipeline {
-  agent none
-  stages {
-    stage('Back-end') {
-      agent {
-        docker { image 'maven:3.8.1-adoptopenjdk-11' }
-      }
-      steps {
-        sh 'mvn --version'
-      }
+    agent none
+
+    stages {
+        stage('Build Frontend') {
+            agent {
+                docker {
+                    image 'node:20-alpine'
+                }
+            }
+            steps {
+                echo 'Building frontend (React) application...'
+                sh 'cd frontend && npm ci && npm run build'
+            }
+        }
+
+        stage('Build Backend') {
+            agent {
+                docker {
+                    image 'python:3.12-alpine'
+                }
+            }
+            steps {
+                echo 'Building backend (Python/Flask) application...'
+                sh 'cd backend && pip install -r requirements.txt'
+            }
+        }
+
+        stage('Test Backend with Database') {
+            agent {
+                docker {
+                     image 'python:3.12-alpine'
+                }
+            }
+            environment {
+                # Set any needed environment variables for DB connection
+                DB_HOST = 'localhost'
+                DB_PORT = '5432'
+                DB_USER = 'postgres'
+                DB_PASSWORD = 'example'
+            }
+            steps {
+                script {
+                    // Start PostgreSQL as a background service for tests (docker run)
+                    sh '''
+                    docker run --name test-db -e POSTGRES_PASSWORD=example -d -p 5432:5432 postgres:15-alpine
+                    sleep 10  # Wait for DB to initialize
+                    '''
+                    echo 'Running backend tests against database...'
+                    sh 'cd backend && pytest tests/'
+                    // Stop and remove the container
+                    sh 'docker stop test-db && docker rm test-db'
+                }
+            }
+        }
+
+        stage('Docker Build Frontend') {
+            agent {
+                docker {
+                    image 'docker:25.0.2-cli'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                echo 'Building Docker image for frontend...'
+                sh 'docker build -f frontend/Dockerfile -t myorg/frontend .'
+            }
+        }
+
+        stage('Docker Build Backend') {
+            agent {
+                docker {
+                    image 'docker:25.0.2-cli'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                echo 'Building Docker image for backend...'
+                sh 'docker build -f backend/Dockerfile -t myorg/backend .'
+            }
+        }
     }
-    stage('Front-end') {
-      agent {
-        docker { image 'node:16-alpine' }
-      }
-      steps {
-        sh 'node --version'
-      }
-    }
-  }
 }
