@@ -10,7 +10,12 @@ pipeline {
             }
             steps {
                 echo 'Building frontend (React) application...'
-                sh 'cd frontend && npm ci && npm run build'
+                sh 'ls -l' // Debug: list workspace contents
+                sh '''
+                    cd frontend
+                    npm ci
+                    npm run build
+                '''
             }
         }
 
@@ -22,14 +27,18 @@ pipeline {
             }
             steps {
                 echo 'Building backend (Python/Flask) application...'
-                sh 'cd backend && pip install -r requirements.txt'
+                sh 'ls -l'
+                sh '''
+                    cd backend
+                    pip install -r requirements.txt
+                '''
             }
         }
 
         stage('Test Backend with Database') {
             agent {
                 docker {
-                     image 'python:3.12-alpine'
+                    image 'python:3.12-alpine'
                 }
             }
             environment {
@@ -40,15 +49,23 @@ pipeline {
             }
             steps {
                 script {
-                    // Start PostgreSQL as a background service for tests (docker run)
+                    // Start PostgreSQL as a background container
                     sh '''
-                    docker run --name test-db -e POSTGRES_PASSWORD=example -d -p 5432:5432 postgres:15-alpine
-                    sleep 10  # Wait for DB to initialize
+                        docker run --name test-db \
+                          -e POSTGRES_PASSWORD=example \
+                          -d -p 5432:5432 postgres:15-alpine
+                        sleep 10
                     '''
                     echo 'Running backend tests against database...'
-                    sh 'cd backend && pytest tests/'
-                    // Stop and remove the container
-                    sh 'docker stop test-db && docker rm test-db'
+                    sh '''
+                        cd backend
+                        pytest tests/
+                    '''
+                    // Stop and remove the database container
+                    sh '''
+                        docker stop test-db
+                        docker rm test-db
+                    '''
                 }
             }
         }
@@ -62,7 +79,10 @@ pipeline {
             }
             steps {
                 echo 'Building Docker image for frontend...'
-                sh 'docker build -f frontend/Dockerfile -t myorg/frontend .'
+                sh '''
+                    cd frontend
+                    docker build -f Dockerfile -t myorg/frontend .
+                '''
             }
         }
 
@@ -75,7 +95,10 @@ pipeline {
             }
             steps {
                 echo 'Building Docker image for backend...'
-                sh 'docker build -f backend/Dockerfile -t myorg/backend .'
+                sh '''
+                    cd backend
+                    docker build -f Dockerfile -t myorg/backend .
+                '''
             }
         }
     }
